@@ -3,6 +3,11 @@
 #define _LINUX_MMZONE_H
 
 #ifndef __ASSEMBLY__
+
+#define MIN_NR_GENS		2U
+#define MAX_NR_GENS		4U
+#define ANON_AND_FILE		2
+
 #ifndef __GENERATING_BOUNDS_H
 
 #include <linux/spinlock.h>
@@ -20,6 +25,7 @@
 #include <linux/atomic.h>
 #include <linux/android_kabi.h>
 #include <asm/page.h>
+#include <linux/page-flags.h>
 
 /* Free memory management - zoned buddy allocator.  */
 #ifndef CONFIG_FORCE_MAX_ZONEORDER
@@ -238,6 +244,22 @@ static inline int is_active_lru(enum lru_list lru)
 	return (lru == LRU_ACTIVE_ANON || lru == LRU_ACTIVE_FILE);
 }
 
+#ifdef CONFIG_LRU_GEN
+
+enum {
+	LRU_GEN_ANON,
+	LRU_GEN_FILE,
+};
+
+struct lru_gen_struct {
+	unsigned long max_seq;
+	unsigned long min_seq[ANON_AND_FILE];
+	struct list_head lists[MAX_NR_GENS][ANON_AND_FILE][MAX_NR_ZONES];
+	long nr_pages[MAX_NR_GENS][ANON_AND_FILE][MAX_NR_ZONES];
+};
+
+#endif /* CONFIG_LRU_GEN */
+
 struct zone_reclaim_stat {
 	/*
 	 * The pageout code in vmscan.c keeps track of how many of the
@@ -258,10 +280,40 @@ struct lruvec {
 	atomic_long_t			inactive_age;
 	/* Refaults at the time of last reclaim cycle */
 	unsigned long			refaults;
+#ifdef CONFIG_LRU_GEN
+	struct lru_gen_struct lrugen;
+#endif
 #ifdef CONFIG_MEMCG
 	struct pglist_data *pgdat;
 #endif
 };
+
+#ifdef CONFIG_LRU_GEN
+void lru_gen_init_lruvec(struct lruvec *lruvec);
+
+#ifdef CONFIG_MEMCG
+struct mem_cgroup;
+void lru_gen_init_memcg(struct mem_cgroup *memcg);
+void lru_gen_exit_memcg(struct mem_cgroup *memcg);
+#endif
+
+#else /* !CONFIG_LRU_GEN */
+
+static inline void lru_gen_init_lruvec(struct lruvec *lruvec)
+{
+}
+
+#ifdef CONFIG_MEMCG
+struct mem_cgroup;
+static inline void lru_gen_init_memcg(struct mem_cgroup *memcg)
+{
+}
+
+static inline void lru_gen_exit_memcg(struct mem_cgroup *memcg)
+{
+}
+#endif
+#endif /* CONFIG_LRU_GEN */
 
 /* Mask used at gathering information at once (see memcontrol.c) */
 #define LRU_ALL_FILE (BIT(LRU_INACTIVE_FILE) | BIT(LRU_ACTIVE_FILE))
@@ -374,6 +426,9 @@ enum zone_type {
 };
 
 #ifndef __GENERATING_BOUNDS_H
+
+#define LRU_GEN_MASK		((BIT(LRU_GEN_WIDTH) - 1) << LRU_GEN_PGOFF)
+#define LRU_REFS_MASK		((BIT(LRU_REFS_WIDTH) - 1) << LRU_REFS_PGOFF)
 
 struct zone {
 	/* Read-mostly fields */

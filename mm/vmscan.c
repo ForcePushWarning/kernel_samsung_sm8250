@@ -66,6 +66,24 @@
 #include <linux/debugfs.h>
 #include <linux/jiffies.h>
 
+#ifdef CONFIG_LRU_GEN
+#define for_each_gen_type_zone(gen, type, zone)			\
+	for ((gen) = 0; (gen) < MAX_NR_GENS; (gen)++)		\
+		for ((type) = 0; (type) < ANON_AND_FILE; (type)++)	\
+			for ((zone) = 0; (zone) < MAX_NR_ZONES; (zone)++)
+
+void lru_gen_init_lruvec(struct lruvec *lruvec)
+{
+	int gen, type, zone;
+	struct lru_gen_struct *lrugen = &lruvec->lrugen;
+
+	lrugen->max_seq = MIN_NR_GENS + 1;
+
+	for_each_gen_type_zone(gen, type, zone)
+		INIT_LIST_HEAD(&lrugen->lists[gen][type][zone]);
+}
+#endif /* CONFIG_LRU_GEN */
+
 struct scan_control {
 	/* How many pages shrink_list() should reclaim */
 	unsigned long nr_to_reclaim;
@@ -1905,10 +1923,9 @@ int isolate_lru_page(struct page *page)
 		spin_lock_irq(zone_lru_lock(zone));
 		lruvec = mem_cgroup_page_lruvec(page, zone->zone_pgdat);
 		if (PageLRU(page)) {
-			int lru = page_lru(page);
 			get_page(page);
 			ClearPageLRU(page);
-			del_page_from_lru_list(page, lruvec, lru);
+			del_page_from_lru_list(page, lruvec);
 			ret = 0;
 		}
 		spin_unlock_irq(zone_lru_lock(zone));
@@ -1980,7 +1997,7 @@ putback_inactive_pages(struct lruvec *lruvec, struct list_head *page_list)
 
 		SetPageLRU(page);
 		lru = page_lru(page);
-		add_page_to_lru_list(page, lruvec, lru);
+		add_page_to_lru_list(page, lruvec);
 
 		if (is_active_lru(lru)) {
 			int file = is_file_lru(lru);
@@ -1988,9 +2005,8 @@ putback_inactive_pages(struct lruvec *lruvec, struct list_head *page_list)
 			reclaim_stat->recent_rotated[file] += numpages;
 		}
 		if (put_page_testzero(page)) {
-			__ClearPageLRU(page);
-			__ClearPageActive(page);
-			del_page_from_lru_list(page, lruvec, lru);
+			del_page_from_lru_list(page, lruvec);
+			__clear_page_lru_flags(page);
 
 			if (unlikely(PageCompound(page))) {
 				spin_unlock_irq(&pgdat->lru_lock);
@@ -2174,13 +2190,11 @@ static unsigned move_active_pages_to_lru(struct lruvec *lruvec,
 		SetPageLRU(page);
 
 		nr_pages = hpage_nr_pages(page);
-		update_lru_size(lruvec, lru, page_zonenum(page), nr_pages);
-		list_move(&page->lru, &lruvec->lists[lru]);
+		add_page_to_lru_list(page, lruvec);
 
 		if (put_page_testzero(page)) {
-			__ClearPageLRU(page);
-			__ClearPageActive(page);
-			del_page_from_lru_list(page, lruvec, lru);
+			del_page_from_lru_list(page, lruvec);
+			__clear_page_lru_flags(page);
 
 			if (unlikely(PageCompound(page))) {
 				spin_unlock_irq(&pgdat->lru_lock);
@@ -4903,12 +4917,10 @@ void check_move_unevictable_pages(struct page **pages, int nr_pages)
 			continue;
 
 		if (page_evictable(page)) {
-			enum lru_list lru = page_lru_base_type(page);
-
 			VM_BUG_ON_PAGE(PageActive(page), page);
+			del_page_from_lru_list(page, lruvec);
 			ClearPageUnevictable(page);
-			del_page_from_lru_list(page, lruvec, LRU_UNEVICTABLE);
-			add_page_to_lru_list(page, lruvec, lru);
+			add_page_to_lru_list(page, lruvec);
 			pgrescued++;
 		}
 	}
