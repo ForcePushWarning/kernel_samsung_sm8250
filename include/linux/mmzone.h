@@ -6,7 +6,8 @@
 
 #define MIN_NR_GENS		2U
 #define MAX_NR_GENS		4U
-#define ANON_AND_FILE		2
+#define MAX_NR_TIERS	4U
+#define ANON_AND_FILE	2
 
 #ifndef __GENERATING_BOUNDS_H
 
@@ -246,6 +247,8 @@ static inline int is_active_lru(enum lru_list lru)
 
 #ifdef CONFIG_LRU_GEN
 
+#define NR_HIST_GENS 1U
+
 enum {
 	LRU_GEN_ANON,
 	LRU_GEN_FILE,
@@ -256,6 +259,11 @@ struct lru_gen_struct {
 	unsigned long min_seq[ANON_AND_FILE];
 	struct list_head lists[MAX_NR_GENS][ANON_AND_FILE][MAX_NR_ZONES];
 	long nr_pages[MAX_NR_GENS][ANON_AND_FILE][MAX_NR_ZONES];
+	unsigned long avg_refaulted[ANON_AND_FILE][MAX_NR_TIERS];
+	unsigned long avg_total[ANON_AND_FILE][MAX_NR_TIERS];
+	unsigned long protected[NR_HIST_GENS][ANON_AND_FILE][MAX_NR_TIERS - 1];
+	atomic_long_t evicted[NR_HIST_GENS][ANON_AND_FILE][MAX_NR_TIERS];
+	atomic_long_t refaulted[NR_HIST_GENS][ANON_AND_FILE][MAX_NR_TIERS];
 };
 
 #endif /* CONFIG_LRU_GEN */

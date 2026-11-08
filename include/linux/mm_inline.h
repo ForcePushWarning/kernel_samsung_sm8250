@@ -136,6 +136,34 @@ static inline int lru_gen_from_seq(unsigned long seq)
 	return seq % MAX_NR_GENS;
 }
 
+static inline int lru_hist_from_seq(unsigned long seq)
+{
+	return seq % NR_HIST_GENS;
+}
+
+static inline int lru_tier_from_refs(int refs)
+{
+	VM_WARN_ON_ONCE(refs > BIT(LRU_REFS_WIDTH));
+
+	/* see the comment in page_lru_refs() */
+	return order_base_2(refs + 1);
+}
+
+static inline int page_lru_refs(struct page *page)
+{
+	unsigned long flags = READ_ONCE(page->flags);
+	bool workingset = flags & BIT(PG_workingset);
+
+	/*
+	* Return the number of accesses beyond PG_referenced, i.e., N-1 if the
+	* total number of accesses is N>1, since N=0,1 both map to the first
+	* tier. lru_tier_from_refs() will account for this off-by-one. Also see
+	* the comment on MAX_NR_TIERS.
+	*/
+	return ((flags & LRU_REFS_MASK) >> LRU_REFS_PGOFF) + workingset;
+
+}
+
 static inline int page_lru_gen(struct page *page)
 {
 	unsigned long flags = READ_ONCE(page->flags);

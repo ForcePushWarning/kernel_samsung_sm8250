@@ -74,13 +74,24 @@
 
 void lru_gen_init_lruvec(struct lruvec *lruvec)
 {
-	int gen, type, zone;
+	int gen, type, zone, hist, tier;
 	struct lru_gen_struct *lrugen = &lruvec->lrugen;
 
 	lrugen->max_seq = MIN_NR_GENS + 1;
 
 	for_each_gen_type_zone(gen, type, zone)
 		INIT_LIST_HEAD(&lrugen->lists[gen][type][zone]);
+
+	for (hist = 0; hist < NR_HIST_GENS; hist++) {
+		for (type = 0; type < ANON_AND_FILE; type++) {
+			for (tier = 0; tier < MAX_NR_TIERS; tier++) {
+				atomic_long_set(
+					&lrugen->evicted[hist][type][tier], 0);
+				atomic_long_set(
+					&lrugen->refaulted[hist][type][tier], 0);
+			}
+		}
+	}
 }
 #endif /* CONFIG_LRU_GEN */
 
