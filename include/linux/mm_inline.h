@@ -131,6 +131,11 @@ static inline bool lru_gen_enabled(void)
 	return true;
 }
 
+static inline bool lru_gen_in_fault(void)
+{
+	return current->in_lru_fault;
+}
+
 static inline int lru_gen_from_seq(unsigned long seq)
 {
 	return seq % MAX_NR_GENS;
@@ -290,6 +295,11 @@ static inline bool lru_gen_del_page(struct lruvec *lruvec,
 #else /* !CONFIG_LRU_GEN */
 
 static inline bool lru_gen_enabled(void)
+{
+	return false;
+}
+
+static inline bool lru_gen_in_fault(void)
 {
 	return false;
 }

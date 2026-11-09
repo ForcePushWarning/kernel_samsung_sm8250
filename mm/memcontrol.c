@@ -1560,6 +1560,15 @@ static int mem_cgroup_soft_reclaim(struct mem_cgroup *root_memcg,
 			}
 			continue;
 		}
+#ifdef CONFIG_LRU_GEN
+		/*
+		 * Respect hard memory.min protection during MGLRU
+		 * soft-limit reclaim.
+		 */
+		if (lru_gen_enabled() &&
+		    mem_cgroup_protected(root_memcg, victim) == MEMCG_PROT_MIN)
+			continue;
+#endif
 		total += mem_cgroup_shrink_node(victim, gfp_mask, false,
 					pgdat, &nr_scanned);
 		*total_scanned += nr_scanned;

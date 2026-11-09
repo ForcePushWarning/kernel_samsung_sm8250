@@ -289,7 +289,7 @@ static void lru_gen_refault(struct page *page, void *shadow)
 	 * Count saturated reference counts as stalls: the page may have
 	 * received more accesses than the available tier bits can encode.
 	 */
-	if (refs == BIT(LRU_REFS_WIDTH)) {
+	if (lru_gen_in_fault() || refs == BIT(LRU_REFS_WIDTH)) {
 		SetPageWorkingset(page);
 		mod_lruvec_state(lruvec, WORKINGSET_RESTORE, delta);
 	}
